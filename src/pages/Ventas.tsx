@@ -57,6 +57,7 @@ export default function Ventas() {
           producto_id: producto.id,
           nombre: producto.nombre,
           precio_unitario: producto.valor,
+          costo_unitario: producto.valor_compra,
           cantidad: 1,
           stock_disponible: producto.cantidad_stock,
         },
@@ -103,6 +104,7 @@ export default function Ventas() {
       producto_id: item.producto_id,
       cantidad: item.cantidad,
       precio_unitario: item.precio_unitario,
+      costo_unitario: item.costo_unitario,
     }))
 
     let sincronizada = false

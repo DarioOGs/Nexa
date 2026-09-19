@@ -14,6 +14,7 @@ export interface Producto {
   codigo: string | null
   cantidad_stock: number
   limite_minimo: number | null
+  valor_compra: number
   valor: number
   imagen_url: string | null
   fecha_actualizacion: string
@@ -28,7 +29,6 @@ export interface Venta {
   fecha: string
   metodo_pago: MetodoPago
   total: number
-  cliente_uuid: string
 }
 
 export interface DetalleVenta {
@@ -37,6 +37,7 @@ export interface DetalleVenta {
   producto_id: string
   cantidad: number
   precio_unitario: number
+  costo_unitario: number
   subtotal: number
 }
 
@@ -69,6 +70,7 @@ export interface ItemCarrito {
   producto_id: string
   nombre: string
   precio_unitario: number
+  costo_unitario: number
   cantidad: number
   stock_disponible: number
 }
@@ -79,7 +81,13 @@ export interface VentaPendiente {
   fecha: string
   metodo_pago: MetodoPago
   total: number
-  items: { id: string; producto_id: string; cantidad: number; precio_unitario: number }[]
+  items: {
+    id: string
+    producto_id: string
+    cantidad: number
+    precio_unitario: number
+    costo_unitario: number
+  }[]
   estado: 'pendiente' | 'conflicto'
   error?: string
 }

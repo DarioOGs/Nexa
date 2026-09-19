@@ -16,6 +16,8 @@ interface FormState {
   codigo: string
   cantidad_stock: string
   limite_minimo: string
+  valor_compra: string
+  margen: string
   valor: string
   imagen_url: string | null
 }
@@ -25,8 +27,19 @@ const formVacio: FormState = {
   codigo: '',
   cantidad_stock: '0',
   limite_minimo: '',
+  valor_compra: '0',
+  margen: '',
   valor: '0',
   imagen_url: null,
+}
+
+function margenDesdeCostoYVenta(costo: number, venta: number) {
+  if (costo <= 0) return ''
+  return (((venta - costo) / costo) * 100).toFixed(1)
+}
+
+function ventaDesdeCostoYMargen(costo: number, margen: number) {
+  return (costo * (1 + margen / 100)).toFixed(2)
 }
 
 export default function Inventario() {
@@ -79,7 +92,9 @@ export default function Inventario() {
                 <th className="px-5 py-3">Producto</th>
                 <th className="px-5 py-3">Stock</th>
                 <th className="px-5 py-3">Mínimo</th>
+                <th className="px-5 py-3">Costo</th>
                 <th className="px-5 py-3">Precio</th>
+                <th className="px-5 py-3">Margen</th>
                 <th className="px-5 py-3">Estado</th>
               </tr>
             </thead>
@@ -105,7 +120,12 @@ export default function Inventario() {
                   </td>
                   <td className="px-5 py-3 text-text-primary">{p.cantidad_stock}</td>
                   <td className="px-5 py-3 text-text-secondary">{p.limite_minimo ?? '—'}</td>
+                  <td className="px-5 py-3 text-text-secondary">{formatoMoneda(p.valor_compra)}</td>
                   <td className="px-5 py-3 text-text-primary">{formatoMoneda(p.valor)}</td>
+                  <td className="px-5 py-3 text-text-secondary">
+                    {margenDesdeCostoYVenta(p.valor_compra, p.valor) || '—'}
+                    {margenDesdeCostoYVenta(p.valor_compra, p.valor) && '%'}
+                  </td>
                   <td className="px-5 py-3">
                     {productoConStockBajo(p) ? (
                       <Badge variante="alerta">Stock bajo</Badge>
@@ -150,6 +170,8 @@ function FormularioProducto({
           codigo: producto.codigo ?? '',
           cantidad_stock: String(producto.cantidad_stock),
           limite_minimo: producto.limite_minimo != null ? String(producto.limite_minimo) : '',
+          valor_compra: String(producto.valor_compra),
+          margen: margenDesdeCostoYVenta(producto.valor_compra, producto.valor),
           valor: String(producto.valor),
           imagen_url: producto.imagen_url,
         }
@@ -158,6 +180,36 @@ function FormularioProducto({
   const [subiendoImagen, setSubiendoImagen] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function cambiarCosto(valorTexto: string) {
+    const costo = Number(valorTexto)
+    const margen = Number(form.margen)
+    setForm((f) => ({
+      ...f,
+      valor_compra: valorTexto,
+      valor: costo > 0 && form.margen !== '' && !Number.isNaN(margen) ? ventaDesdeCostoYMargen(costo, margen) : f.valor,
+    }))
+  }
+
+  function cambiarMargen(valorTexto: string) {
+    const costo = Number(form.valor_compra)
+    const margen = Number(valorTexto)
+    setForm((f) => ({
+      ...f,
+      margen: valorTexto,
+      valor: costo > 0 && !Number.isNaN(margen) ? ventaDesdeCostoYMargen(costo, margen) : f.valor,
+    }))
+  }
+
+  function cambiarVenta(valorTexto: string) {
+    const costo = Number(form.valor_compra)
+    const venta = Number(valorTexto)
+    setForm((f) => ({
+      ...f,
+      valor: valorTexto,
+      margen: costo > 0 && !Number.isNaN(venta) ? margenDesdeCostoYVenta(costo, venta) : f.margen,
+    }))
+  }
 
   async function subirImagen(archivo: File) {
     setSubiendoImagen(true)
@@ -179,6 +231,7 @@ function FormularioProducto({
 
     const nombre = form.nombre.trim()
     const cantidad = Number(form.cantidad_stock)
+    const costo = Number(form.valor_compra)
     const valor = Number(form.valor)
     const limite = form.limite_minimo.trim() === '' ? null : Number(form.limite_minimo)
 
@@ -190,6 +243,10 @@ function FormularioProducto({
       setError('La cantidad no puede ser negativa.')
       return
     }
+    if (costo < 0 || Number.isNaN(costo)) {
+      setError('El valor de compra no puede ser negativo.')
+      return
+    }
 
     setGuardando(true)
     const payload = {
@@ -197,6 +254,7 @@ function FormularioProducto({
       codigo: form.codigo.trim() || null,
       cantidad_stock: cantidad,
       limite_minimo: limite,
+      valor_compra: costo,
       valor: Number.isNaN(valor) ? 0 : valor,
       imagen_url: form.imagen_url,
     }
@@ -266,6 +324,44 @@ function FormularioProducto({
         </Campo>
 
         <div className="grid grid-cols-3 gap-3">
+          <Campo etiqueta="Costo (compra)">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className="campo"
+              value={form.valor_compra}
+              onChange={(e) => cambiarCosto(e.target.value)}
+              required
+            />
+          </Campo>
+          <Campo etiqueta="% Ganancia">
+            <input
+              type="number"
+              step="0.1"
+              className="campo"
+              value={form.margen}
+              onChange={(e) => cambiarMargen(e.target.value)}
+              placeholder="ej. 30"
+            />
+          </Campo>
+          <Campo etiqueta="Precio (venta)">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className="campo"
+              value={form.valor}
+              onChange={(e) => cambiarVenta(e.target.value)}
+              required
+            />
+          </Campo>
+        </div>
+        <p className="-mt-1 text-xs text-text-secondary">
+          Completá el costo y el % de ganancia para que el precio de venta se calcule solo, o escribilo directo.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Cantidad">
             <input
               type="number"
@@ -284,17 +380,6 @@ function FormularioProducto({
               value={form.limite_minimo}
               onChange={(e) => setForm((f) => ({ ...f, limite_minimo: e.target.value }))}
               placeholder="—"
-            />
-          </Campo>
-          <Campo etiqueta="Precio">
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className="campo"
-              value={form.valor}
-              onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
-              required
             />
           </Campo>
         </div>

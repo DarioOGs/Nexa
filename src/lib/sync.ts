@@ -45,6 +45,7 @@ export async function sincronizarPendientes(): Promise<ResultadoSync> {
         producto_id: item.producto_id,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
+        costo_unitario: item.costo_unitario,
       }))
 
       const { error: errorDetalle } = await supabase

@@ -1,6 +1,10 @@
 -- ============================================================================
 -- Nexa / VirtualZone — esquema inicial (Fase 9 del Documento Maestro)
 -- Ejecutar en el SQL Editor de Supabase (proyecto nuevo, plan gratuito).
+--
+-- Si este esquema ya se corrió antes en tu proyecto, no lo vuelvas a correr
+-- entero: mirá supabase/migrations/ y corré ahí solo los archivos nuevos
+-- (son incrementales, uno por cada cambio posterior a este archivo).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -51,6 +55,7 @@ create table public.productos (
   codigo text unique,
   cantidad_stock integer not null default 0 check (cantidad_stock >= 0),
   limite_minimo integer check (limite_minimo >= 0),
+  valor_compra numeric(12, 2) not null default 0 check (valor_compra >= 0),
   valor numeric(12, 2) not null default 0 check (valor >= 0),
   imagen_url text,
   fecha_actualizacion timestamptz not null default now(),
@@ -93,6 +98,7 @@ create table public.detalle_venta (
   producto_id uuid not null references public.productos (id),
   cantidad integer not null check (cantidad > 0),
   precio_unitario numeric(12, 2) not null check (precio_unitario >= 0),
+  costo_unitario numeric(12, 2) not null default 0 check (costo_unitario >= 0),
   subtotal numeric(12, 2) generated always as (cantidad * precio_unitario) stored
 );
 

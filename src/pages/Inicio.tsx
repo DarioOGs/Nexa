@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, DollarSign, Receipt } from 'lucide-react'
+import { AlertTriangle, DollarSign, Printer, Receipt } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Comprobante } from '@/components/ventas/Comprobante'
 import { supabase } from '@/lib/supabase'
 import { formatoMoneda, formatoFechaHora } from '@/lib/format'
+import { itemsDesdeVenta } from '@/lib/comprobante'
 import { productoConStockBajo, useProductos } from '@/hooks/useProductos'
 import type { VentaConDetalle } from '@/types'
 
@@ -13,6 +15,7 @@ export default function Inicio() {
   const { productos, enLinea } = useProductos()
   const [ventasHoy, setVentasHoy] = useState<VentaConDetalle[]>([])
   const [cargando, setCargando] = useState(true)
+  const [reimprimir, setReimprimir] = useState<VentaConDetalle | null>(null)
 
   useEffect(() => {
     if (!enLinea) {
@@ -122,12 +125,30 @@ export default function Inicio() {
                 <div className="flex items-center gap-2">
                   <Badge variante="neutral">{v.metodo_pago}</Badge>
                   <span className="font-semibold text-text-primary">{formatoMoneda(v.total)}</span>
+                  <button
+                    onClick={() => setReimprimir(v)}
+                    className="rounded-md p-1.5 text-text-secondary hover:text-accent"
+                    title="Reimprimir comprobante"
+                  >
+                    <Printer size={16} />
+                  </button>
                 </div>
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      {reimprimir && (
+        <Comprobante
+          fecha={reimprimir.fecha}
+          metodoPago={reimprimir.metodo_pago}
+          items={itemsDesdeVenta(reimprimir)}
+          total={reimprimir.total}
+          vendedor={reimprimir.perfiles?.nombre ?? '—'}
+          onCerrar={() => setReimprimir(null)}
+        />
+      )}
     </AppLayout>
   )
 }

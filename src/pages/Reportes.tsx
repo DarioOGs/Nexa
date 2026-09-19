@@ -1,14 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Download, Printer } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Comprobante } from '@/components/ventas/Comprobante'
 import { supabase } from '@/lib/supabase'
 import { formatoMoneda, formatoFechaHora } from '@/lib/format'
+import { itemsDesdeVenta } from '@/lib/comprobante'
 import { productoConStockBajo, useProductos } from '@/hooks/useProductos'
 import type { MovimientoContable, VentaConDetalle } from '@/types'
 
 type Periodo = 'dia' | 'semana' | 'mes' | 'anio' | 'personalizado'
+
+const ETIQUETAS_PERIODO: Record<Periodo, string> = {
+  dia: 'día',
+  semana: 'semana',
+  mes: 'mes',
+  anio: 'año',
+  personalizado: 'período',
+}
 
 function rangoParaPeriodo(periodo: Periodo): { desde: string; hasta: string } {
   const hasta = new Date()
@@ -34,6 +46,8 @@ export default function Reportes() {
   const [movimientos, setMovimientos] = useState<MovimientoContable[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reimprimir, setReimprimir] = useState<VentaConDetalle | null>(null)
+  const [generandoPdf, setGenerandoPdf] = useState(false)
 
   function elegirPeriodo(p: Periodo) {
     setPeriodo(p)
@@ -74,9 +88,37 @@ export default function Reportes() {
   }, [desde, hasta])
 
   const totalVentas = ventas.reduce((acc, v) => acc + Number(v.total), 0)
+  const costoVentas = ventas.reduce(
+    (acc, v) => acc + v.detalle_venta.reduce((a, d) => a + Number(d.costo_unitario) * d.cantidad, 0),
+    0,
+  )
+  const gananciaVentas = totalVentas - costoVentas
   const ingresosVarios = movimientos.filter((m) => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
   const egresos = movimientos.filter((m) => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
+  const gananciaTotal = gananciaVentas + ingresosVarios - egresos
   const stockBajo = useMemo(() => productos.filter(productoConStockBajo), [productos])
+
+  const productoTop = useMemo(() => {
+    const conteo = new Map<string, { nombre: string; cantidad: number }>()
+    for (const v of ventas) {
+      for (const d of v.detalle_venta) {
+        const nombre = d.productos?.nombre ?? 'Producto'
+        const actual = conteo.get(d.producto_id) ?? { nombre, cantidad: 0 }
+        actual.cantidad += d.cantidad
+        conteo.set(d.producto_id, actual)
+      }
+    }
+    return [...conteo.values()].sort((a, b) => b.cantidad - a.cantidad)[0] ?? null
+  }, [ventas])
+
+  async function descargarPdf() {
+    setGenerandoPdf(true)
+    // Carga diferida: jsPDF pesa bastante y solo hace falta al pedir el PDF,
+    // no en cada carga de la app (importa en el resto de la PWA, RNF01).
+    const { generarReportePdf } = await import('@/lib/pdf')
+    generarReportePdf({ etiquetaPeriodo: ETIQUETAS_PERIODO[periodo], desde, hasta, ventas, movimientos })
+    setGenerandoPdf(false)
+  }
 
   return (
     <AppLayout titulo="Reportes">
@@ -122,11 +164,17 @@ export default function Reportes() {
               className="campo w-auto"
             />
           </div>
+
+          <Button variante="secondary" onClick={descargarPdf} disabled={cargando || generandoPdf || ventas.length === 0}>
+            <span className="flex items-center gap-1.5">
+              <Download size={16} /> {generandoPdf ? 'Generando…' : 'Descargar PDF'}
+            </span>
+          </Button>
         </div>
         {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Vendido</p>
           <p className="font-display text-xl font-semibold text-text-primary">{formatoMoneda(totalVentas)}</p>
@@ -134,6 +182,17 @@ export default function Reportes() {
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Ventas</p>
           <p className="font-display text-xl font-semibold text-text-primary">{ventas.length}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Ganancia neta</p>
+          <p className="font-display text-xl font-semibold text-text-primary">{formatoMoneda(gananciaTotal)}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Producto más vendido</p>
+          <p className="truncate font-display text-xl font-semibold text-text-primary">
+            {productoTop ? productoTop.nombre : '—'}
+          </p>
+          {productoTop && <p className="text-xs text-text-secondary">{productoTop.cantidad} unidades</p>}
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Otros ingresos</p>
@@ -158,15 +217,24 @@ export default function Reportes() {
             <ul className="mt-2 max-h-96 divide-y divide-border overflow-y-auto">
               {ventas.map((v) => (
                 <li key={v.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                  <div>
-                    <p className="text-text-primary">
+                  <div className="min-w-0">
+                    <p className="truncate text-text-primary">
                       {v.detalle_venta.map((d) => d.productos?.nombre).filter(Boolean).join(', ') || 'Venta'}
                     </p>
                     <p className="text-xs text-text-secondary">
                       {formatoFechaHora(v.fecha)} · {v.perfiles?.nombre ?? ''}
                     </p>
                   </div>
-                  <span className="font-semibold text-text-primary">{formatoMoneda(v.total)}</span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="font-semibold text-text-primary">{formatoMoneda(v.total)}</span>
+                    <button
+                      onClick={() => setReimprimir(v)}
+                      className="rounded-md p-1.5 text-text-secondary hover:text-accent"
+                      title="Reimprimir comprobante"
+                    >
+                      <Printer size={16} />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -194,6 +262,17 @@ export default function Reportes() {
           )}
         </Card>
       </div>
+
+      {reimprimir && (
+        <Comprobante
+          fecha={reimprimir.fecha}
+          metodoPago={reimprimir.metodo_pago}
+          items={itemsDesdeVenta(reimprimir)}
+          total={reimprimir.total}
+          vendedor={reimprimir.perfiles?.nombre ?? '—'}
+          onCerrar={() => setReimprimir(null)}
+        />
+      )}
     </AppLayout>
   )
 }

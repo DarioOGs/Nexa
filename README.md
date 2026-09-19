@@ -22,6 +22,9 @@ que definieron este MVP.
    completo. Crea las tablas (Fase 9), las reglas de seguridad por rol
    (Fase 8), los triggers de descuento de stock y de historial de
    auditoría, y el bucket de Storage para las fotos de producto.
+   Si el proyecto ya existía de antes (`schema.sql` ya corrido una vez),
+   no lo repitas: en cambio corré, en orden, los archivos nuevos que haya
+   en `supabase/migrations/` (cada uno se corre una sola vez).
 3. Crear el primer usuario administrador:
    - En **Authentication → Users**, crear un usuario con email
      `<usuario>@nexa.local` (por ejemplo `diana@nexa.local`) y una
@@ -104,6 +107,21 @@ supabase/
   la venta.
 - **RF13**: subida de imagen de producto a Supabase Storage
   (`Inventario.tsx`).
+- **Costo, % de ganancia y ganancia real** (pedido por Diana): en
+  `Inventario.tsx` el costo de compra, el % de ganancia y el precio de
+  venta están vinculados — completar dos calcula el tercero. Cada línea de
+  venta guarda el costo del producto en ese momento
+  (`detalle_venta.costo_unitario`), igual que ya hace con el precio, para
+  que la ganancia de una venta pasada no cambie si el costo del producto se
+  actualiza después.
+- **Reporte en PDF** (pedido por Diana): botón "Descargar PDF" en
+  `Reportes.tsx` (`src/lib/pdf.ts`, con jsPDF) — vendido, ganancia,
+  producto más vendido y el detalle de ventas y movimientos del período
+  elegido. La librería se carga solo al pedir el PDF (import dinámico) para
+  no pesar en el resto de la app.
+- **Reimprimir comprobante** (pedido por Diana): botón de reimprimir junto
+  a cada venta en Inicio y en Reportes (`src/lib/comprobante.ts`
+  reconstruye el comprobante desde la venta ya guardada en la base).
 
 ## Fuera de alcance de este MVP (Fase 3 del documento)
 
